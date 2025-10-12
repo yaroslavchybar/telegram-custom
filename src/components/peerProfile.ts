@@ -228,6 +228,8 @@ export default class PeerProfile {
 
     this.bio.title.classList.add('pre-wrap');
 
+    // HIDDEN: Username row creation commented out to hide username from profile
+    /*
     this.username = new Row({
       title: ' ',
       subtitleLangKey: 'Username',
@@ -248,7 +250,10 @@ export default class PeerProfile {
         }]
       }
     });
+    */
 
+    // HIDDEN: Phone row creation commented out to hide phone number from profile
+    /*
     this.phone = new Row({
       title: ' ',
       subtitle: true,
@@ -284,6 +289,7 @@ export default class PeerProfile {
         }]
       }
     });
+    */
 
     this.link = new Row({
       title: ' ',
@@ -365,9 +371,10 @@ export default class PeerProfile {
     this.botVerification = document.createElement('div');
     this.botVerification.classList.add('profile-bot-verification');
 
+    // HIDDEN: Phone and username containers removed from profile display
     this.section.content.append(
-      this.phone.container,
-      this.username.container,
+      // this.phone.container,        // HIDDEN: Phone number hidden
+      // this.username.container,     // HIDDEN: Username hidden
       this.location.container,
       this.bio.container,
       this.link.container,
@@ -594,15 +601,15 @@ export default class PeerProfile {
   public cleanupHTML() {
     [
       this.bio,
-      this.phone,
-      this.username,
+      // this.phone,      // HIDDEN: Phone field removed
+      // this.username,   // HIDDEN: Username field removed
       this.location,
       this.link,
       this.businessHours,
       this.businessLocation,
       this.personalChannelSection,
       this.botPermissionsSection
-    ].forEach((row) => {
+    ].filter(Boolean).forEach((row) => {
       row.container.style.display = 'none';
     });
 
@@ -797,12 +804,12 @@ export default class PeerProfile {
 
   private async fillRows(manual: Promise<any>) {
     return Promise.all([
-      this.fillUsername(),
-      this.fillUserPhone(),
+      // this.fillUsername(),     // HIDDEN: Username fill removed
+      // this.fillUserPhone(),    // HIDDEN: Phone fill removed
       this.fillNotifications(),
       this.setMoreDetails(undefined, manual),
       this.setPeerStatus(true, true)
-    ].map((promise) => promise.catch(() => undefined as () => void))).then((callbacks) => {
+    ].filter(Boolean).map((promise) => promise.catch(() => undefined as () => void))).then((callbacks) => {
       return () => {
         callbacks.forEach((callback) => callback?.());
       };

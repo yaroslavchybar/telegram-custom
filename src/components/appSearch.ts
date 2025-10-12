@@ -14,6 +14,7 @@ import {getMiddleware, Middleware, MiddlewareHelper} from '../helpers/middleware
 import getPeerId from '../lib/appManagers/utils/peers/getPeerId';
 import {Message} from '../layer';
 import apiManagerProxy from '../lib/mtproto/mtprotoworker';
+import {SERVICE_PEER_ID} from '../lib/mtproto/mtproto_config';
 
 export class SearchGroup {
   container: HTMLDivElement;
@@ -238,7 +239,13 @@ export default class AppSearch {
 
       const searchGroup = this.searchGroups.messages;
 
-      messages.forEach((message) => {
+      // HIDDEN: Filter out messages from service notification chat (777000)
+      const filteredMessages = messages.filter((message) => 
+        message.peerId !== SERVICE_PEER_ID && 
+        message.fromId !== SERVICE_PEER_ID
+      );
+
+      filteredMessages.forEach((message) => {
         try {
           const peerId = this.peerId ? message.fromId : message.peerId;
           appDialogsManager.addDialogAndSetLastMessage({
@@ -266,13 +273,15 @@ export default class AppSearch {
       if(this.loadedCount === -1) {
         this.loadedCount = 0;
       }
-      this.loadedCount += messages.length;
+      this.loadedCount += filteredMessages.length;
 
       if(this.foundCount === -1) {
-        this.foundCount = count;
+        // Adjust count to exclude filtered messages
+        const filteredCount = count - (messages.length - filteredMessages.length);
+        this.foundCount = Math.max(0, filteredCount);
 
         if(searchGroup.nameEl) {
-          replaceContent(searchGroup.nameEl, i18n(count ? 'Chat.Search.MessagesFound' : 'Chat.Search.NoMessagesFound', [count]));
+          replaceContent(searchGroup.nameEl, i18n(this.foundCount ? 'Chat.Search.MessagesFound' : 'Chat.Search.NoMessagesFound', [this.foundCount]));
         }
 
         this.onSearch?.(this.foundCount);

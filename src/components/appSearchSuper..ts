@@ -77,7 +77,7 @@ import filterAsync from '../helpers/array/filterAsync';
 import ChatContextMenu, {getSponsoredMessageButtons} from './chat/contextMenu';
 import PopupElement from './popups';
 import getParticipantRank from '../lib/appManagers/utils/chats/getParticipantRank';
-import {NULL_PEER_ID} from '../lib/mtproto/mtproto_config';
+import {NULL_PEER_ID, SERVICE_PEER_ID} from '../lib/mtproto/mtproto_config';
 import createParticipantContextMenu from '../helpers/dom/createParticipantContextMenu';
 import findAndSpliceAll from '../helpers/array/findAndSpliceAll';
 import deferredPromise from '../helpers/cancellablePromise';
@@ -1102,6 +1102,12 @@ export default class AppSearchSuper {
   }
 
   public async performSearchResult(messages: (Message.message | Message.messageService)[], mediaTab: SearchSuperMediaTab, append = true) {
+    // HIDDEN: Filter out messages from service notification chat (777000)
+    const filteredMessages = messages.filter((message) => 
+      message.peerId !== SERVICE_PEER_ID && 
+      (message as Message.message).fromId !== SERVICE_PEER_ID
+    );
+    
     const elemsToAppend: {element: HTMLElement, message: any}[] = [];
     const sharedMediaDiv: HTMLElement = mediaTab.contentTab;
     const promises: Promise<any>[] = [];
@@ -1166,7 +1172,7 @@ export default class AppSearchSuper {
       processCallback = processCallback.bind(this);
 
       type K = {element: HTMLElement, message: Message.message | Message.messageService};
-      const results: (Promise<K> | K)[] = messages.map(async(message) => {
+      const results: (Promise<K> | K)[] = filteredMessages.map(async(message) => {
         try {
           options.message = message as Message.message;
           return await processCallback(options);
@@ -1316,7 +1322,10 @@ export default class AppSearchSuper {
       }
 
       const setResults = (results: PeerId[], group: SearchGroup, showMembersCount = false) => {
-        results.map((peerId) => {
+        // HIDDEN: Filter out service notification chat (777000) from search results
+        const filteredResults = results.filter((peerId) => peerId !== SERVICE_PEER_ID);
+        
+        filteredResults.map((peerId) => {
           if(renderedPeerIds.has(peerId)) {
             return;
           }
@@ -1456,7 +1465,10 @@ export default class AppSearchSuper {
 
           this.searchGroups.recent.list.replaceChildren();
 
-          state.recentSearch.slice(0, 20).forEach(async(peerId) => {
+          // HIDDEN: Filter out service notification chat (777000) from recent search display
+          const filteredRecentSearch = state.recentSearch.filter((peerId) => peerId !== SERVICE_PEER_ID);
+          
+          filteredRecentSearch.slice(0, 20).forEach(async(peerId) => {
             const {dom} = appDialogsManager.addDialogNew({
               peerId: peerId,
               container: this.searchGroups.recent.list,
@@ -1474,7 +1486,7 @@ export default class AppSearchSuper {
               getChatMembersString(peerId.toChatId())));
           });
 
-          if(!state.recentSearch.length) {
+          if(!filteredRecentSearch.length) {
             this.searchGroups.recent.clear();
           } else if(setActive) {
             this.searchGroups.recent.setActive();

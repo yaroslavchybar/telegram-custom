@@ -87,6 +87,8 @@ export default class AppPrivacyAndSecurityTab extends SliderSuperTabEventable {
       });
       blockedUsersRow.freezed = true;
 
+      // HIDDEN: Two factor authentication row creation commented out since it's hidden
+      /*
       let passwordState: AccountPassword;
       const twoFactorRowOptions: ConstructorParameters<typeof Row>[0] = {
         icon: 'lock',
@@ -114,7 +116,10 @@ export default class AppPrivacyAndSecurityTab extends SliderSuperTabEventable {
 
       const twoFactorRow = new Row(twoFactorRowOptions);
       twoFactorRow.freezed = true;
+      */
 
+      // HIDDEN: Passcode lock row creation commented out since it's hidden
+      /*
       const passcodeLockRowOptions: ConstructorParameters<typeof Row>[0] = {
         icon: 'key',
         titleLangKey: 'PasscodeLock.Item.Title',
@@ -141,7 +146,10 @@ export default class AppPrivacyAndSecurityTab extends SliderSuperTabEventable {
       };
       const passcodeLockRow = new Row(passcodeLockRowOptions);
       passcodeLockRow.freezed = true;
+      */
 
+      // HIDDEN: Active sessions row creation commented out since it's hidden
+      /*
       const activeSessionsRow = this.activeSessionsRow = new Row({
         icon: 'activesessions',
         titleLangKey: 'SessionsTitle',
@@ -157,6 +165,7 @@ export default class AppPrivacyAndSecurityTab extends SliderSuperTabEventable {
         listenerSetter: this.listenerSetter
       });
       activeSessionsRow.freezed = true;
+      */
 
       const websitesRow = this.websitesRow = new Row({
         icon: 'mention',
@@ -173,7 +182,9 @@ export default class AppPrivacyAndSecurityTab extends SliderSuperTabEventable {
       });
       websitesRow.freezed = true;
 
-      section.content.append(blockedUsersRow.container, passcodeLockRow.container, twoFactorRow.container, activeSessionsRow.container, websitesRow.container);
+      // HIDDEN: Hide security-related options from Privacy & Security settings
+      // section.content.append(blockedUsersRow.container, passcodeLockRow.container, twoFactorRow.container, activeSessionsRow.container, websitesRow.container);
+      section.content.append(blockedUsersRow.container, websitesRow.container);
       this.scrollable.append(section.container);
 
       const setBlockedCount = (count: number) => {
@@ -203,6 +214,8 @@ export default class AppPrivacyAndSecurityTab extends SliderSuperTabEventable {
 
       updateBlocked();
 
+      // HIDDEN: Disable update functions for hidden security options
+      /*
       this.managers.passwordManager.getState().then((state) => {
         passwordState = state;
         replaceContent(twoFactorRow.subtitle, i18n(state.pFlags.has_password ? 'PrivacyAndSecurity.Item.On' : 'PrivacyAndSecurity.Item.Off'));
@@ -226,6 +239,7 @@ export default class AppPrivacyAndSecurityTab extends SliderSuperTabEventable {
       });
 
       this.updateActiveSessions();
+      */
       promises.push(this.updateActiveWebsites(p.webAuthorizations));
     }
 

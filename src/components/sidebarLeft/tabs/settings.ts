@@ -48,8 +48,10 @@ export default class AppSettingsTab extends SliderSuperTab {
   private profile: PeerProfile;
 
   private languageRow: Row;
-  private devicesRow: Row;
-  private premiumRow: Row;
+  // HIDDEN: devicesRow property commented out since devices page is hidden
+  // private devicesRow: Row;
+  // HIDDEN: premiumRow property commented out since premium features are hidden
+  // private premiumRow: Row;
 
   private authorizations: Authorization.authorization[];
   private getAuthorizationsPromise: Promise<AccountAuthorizations.accountAuthorizations>;
@@ -198,25 +200,26 @@ export default class AppSettingsTab extends SliderSuperTab {
 
     const languageArgs = AppLanguageTab.getInitArgs();
     rows.push(
-      this.devicesRow = new Row({
-        titleLangKey: 'Devices',
-        titleRightSecondary: ' ',
-        icon: 'activesessions',
-        clickable: async() => {
-          if(!this.authorizations) {
-            await this.updateActiveSessions();
-          }
+      // HIDDEN: Devices page commented out
+      // this.devicesRow = new Row({
+      //   titleLangKey: 'Devices',
+      //   titleRightSecondary: ' ',
+      //   icon: 'activesessions',
+      //   clickable: async() => {
+      //     if(!this.authorizations) {
+      //       await this.updateActiveSessions();
+      //     }
 
-          const tab = this.slider.createTab(AppActiveSessionsTab);
-          tab.authorizations = this.authorizations;
-          tab.eventListener.addEventListener('destroy', () => {
-            this.authorizations = undefined;
-            this.updateActiveSessions(true);
-          }, {once: true});
-          tab.open();
-        },
-        listenerSetter: this.listenerSetter
-      }),
+      //     const tab = this.slider.createTab(AppActiveSessionsTab);
+      //     tab.authorizations = this.authorizations;
+      //     tab.eventListener.addEventListener('destroy', () => {
+      //       this.authorizations = undefined;
+      //       this.updateActiveSessions(true);
+      //     }, {once: true});
+      //     tab.open();
+      //   },
+      //   listenerSetter: this.listenerSetter
+      // }),
       this.languageRow = new Row({
         titleLangKey: 'AccountSettings.Language',
         titleRightSecondary: i18n('LanguageName'),
@@ -233,63 +236,65 @@ export default class AppSettingsTab extends SliderSuperTab {
     // const profileSection = new SettingSection({fullWidth: true, noPaddingTop: true});
     // profileSection.content.append(this.profile.element);
 
-    this.premiumRow = new Row({
-      titleLangKey: 'Premium.Boarding.Title',
-      icon: 'star',
-      iconClasses: ['row-icon-premium-color'],
-      clickable: () => {
-        PopupPremium.show();
-      },
-      listenerSetter: this.listenerSetter
-    });
+    // HIDDEN: All Premium features commented out
+    // this.premiumRow = new Row({
+    //   titleLangKey: 'Premium.Boarding.Title',
+    //   icon: 'star',
+    //   iconClasses: ['row-icon-premium-color'],
+    //   clickable: () => {
+    //     PopupPremium.show();
+    //   },
+    //   listenerSetter: this.listenerSetter
+    // });
 
-    const starsRow = new Row({
-      titleLangKey: 'MenuTelegramStars',
-      titleRightSecondary: true,
-      icon: 'star',
-      iconClasses: ['row-icon-stars-color'],
-      clickable: () => {
-        PopupElement.createPopup(PopupStars);
-      },
-      listenerSetter: this.listenerSetter
-    });
+    // const starsRow = new Row({
+    //   titleLangKey: 'MenuTelegramStars',
+    //   titleRightSecondary: true,
+    //   icon: 'star',
+    //   iconClasses: ['row-icon-stars-color'],
+    //   clickable: () => {
+    //     PopupElement.createPopup(PopupStars);
+    //   },
+    //   listenerSetter: this.listenerSetter
+    // });
 
-    createRoot((dispose) => {
-      this.middlewareHelper.onDestroy(dispose);
-      const stars = useStars();
-      createEffect(() => {
-        starsRow.titleRight.textContent = '' + stars();
-        starsRow.container.classList.toggle('hide', !stars());
-      });
-    });
+    // createRoot((dispose) => {
+    //   this.middlewareHelper.onDestroy(dispose);
+    //   const stars = useStars();
+    //   createEffect(() => {
+    //     starsRow.titleRight.textContent = '' + stars();
+    //     starsRow.container.classList.toggle('hide', !stars());
+    //   });
+    // });
 
-    const giftPremium = new Row({
-      titleLangKey: 'GiftPremiumGifting',
-      icon: 'gift',
-      clickable: () => {
-        appImManager.initGifting();
-      },
-      listenerSetter: this.listenerSetter
-    });
+    // const giftPremium = new Row({
+    //   titleLangKey: 'GiftPremiumGifting',
+    //   icon: 'gift',
+    //   clickable: () => {
+    //     appImManager.initGifting();
+    //   },
+    //   listenerSetter: this.listenerSetter
+    // });
 
-    const badge = i18n('New');
-    badge.classList.add('row-title-badge');
-    giftPremium.title.append(badge);
+    // const badge = i18n('New');
+    // badge.classList.add('row-title-badge');
+    // giftPremium.title.append(badge);
 
     const buttonsSection = new SettingSection();
     buttonsSection.content.append(buttonsDiv);
 
-    let premiumSection: SettingSection;
-    if(!await apiManagerProxy.isPremiumPurchaseBlocked()) {
-      premiumSection = new SettingSection();
-      premiumSection.content.append(this.premiumRow.container, starsRow.container, giftPremium.container);
-    }
+    // HIDDEN: Premium section creation commented out
+    // let premiumSection: SettingSection;
+    // if(!await apiManagerProxy.isPremiumPurchaseBlocked()) {
+    //   premiumSection = new SettingSection();
+    //   premiumSection.content.append(this.premiumRow.container, starsRow.container, giftPremium.container);
+    // }
 
     this.scrollable.append(...[
       this.profile.element,
       /* profileSection.container, */
-      buttonsSection.container,
-      premiumSection?.container
+      buttonsSection.container
+      // HIDDEN: premiumSection?.container removed
     ].filter(Boolean));
 
     const getEditProfileArgs = () => {
@@ -314,7 +319,8 @@ export default class AppSettingsTab extends SliderSuperTab {
 
     lottieLoader.loadLottieWorkers();
 
-    this.updateActiveSessions();
+    // HIDDEN: Removed updateActiveSessions call since devices row is hidden
+    // this.updateActiveSessions();
 
     (await fillPromise)();
   }
@@ -335,7 +341,8 @@ export default class AppSettingsTab extends SliderSuperTab {
   public updateActiveSessions(overwrite?: boolean) {
     return this.getAuthorizations(overwrite).then((auths) => {
       this.authorizations = auths.authorizations;
-      this.devicesRow.titleRight.textContent = '' + this.authorizations.length;
+      // HIDDEN: Devices row is hidden, so don't update its display
+      // this.devicesRow.titleRight.textContent = '' + this.authorizations.length;
     });
   }
 

@@ -40,7 +40,7 @@ import debounce from '../../helpers/schedulers/debounce';
 import pause from '../../helpers/schedulers/pause';
 import MEDIA_MIME_TYPES_SUPPORTED from '../../environment/mediaMimeTypesSupport';
 import IMAGE_MIME_TYPES_SUPPORTED from '../../environment/imageMimeTypesSupport';
-import {NULL_PEER_ID, STARS_CURRENCY} from '../mtproto/mtproto_config';
+import {NULL_PEER_ID, SERVICE_PEER_ID, STARS_CURRENCY} from '../mtproto/mtproto_config';
 import telegramMeWebManager from '../mtproto/telegramMeWebManager';
 import {ONE_DAY} from '../../helpers/date';
 import TopbarCall from '../../components/topbarCall';
@@ -1326,6 +1326,15 @@ export class AppImManager extends EventListenerBase<{
       return;
     }
 
+    // HIDDEN: Block direct access to service notification chat (777000)
+    const hashWithoutSymbol = hash.slice(1); // Remove the '#' symbol
+    if(hashWithoutSymbol === SERVICE_PEER_ID.toString()) {
+      this.log('Blocked direct access to service notification chat, redirecting to main page');
+      location.hash = '';
+      location.reload();
+      return;
+    }
+
     if(params.tgaddr) {
       appNavigationController.replaceState();
       this.openUrl(params.tgaddr);
@@ -1357,8 +1366,26 @@ export class AppImManager extends EventListenerBase<{
             break;
           }
 
-          default: { // peerId
-            const peerId = postId ? p.toPeerId(true) : p.toPeerId();
+          default: { // peerId or random ID
+            // HIDDEN: Check if this is a random ID that maps to a real peer ID
+            let peerId: PeerId;
+            const realPeerId = this.getPeerIdFromRandomId(p);
+            if(realPeerId) {
+              // This is a random ID, use the real peer ID
+              peerId = realPeerId;
+            } else {
+              // Try parsing as regular peer ID (fallback for direct access)
+              peerId = postId ? p.toPeerId(true) : p.toPeerId();
+            }
+            
+            // HIDDEN: Redirect to main page if user tries to access service notification chat (777000)
+            if(peerId === SERVICE_PEER_ID) {
+              this.log('Blocked access to service notification chat, redirecting to main page');
+              location.hash = '';
+              location.reload();
+              return;
+            }
+            
             this.managers.appPeersManager.getPeer(peerId).then((peer) => {
               this.op({
                 peer,
@@ -1366,6 +1393,11 @@ export class AppImManager extends EventListenerBase<{
                 threadId,
                 call: params.call
               });
+            }).catch(() => {
+              // If peer not found, redirect to main page
+              this.log('Peer not found for ID:', p, 'redirecting to main page');
+              location.hash = '';
+              location.reload();
             });
             break;
           }
@@ -2101,11 +2133,33 @@ export class AppImManager extends EventListenerBase<{
     }
   };
 
+  // HIDDEN: Map to store random IDs for privacy
+  private peerIdToRandomId = new Map<PeerId, string>();
+  private randomIdToPeerId = new Map<string, PeerId>();
+
+  private getRandomIdForPeer(peerId: PeerId): string {
+    if(!this.peerIdToRandomId.has(peerId)) {
+      // Generate a random ID that looks like a peer ID but isn't real
+      const randomId = Math.floor(Math.random() * 900000000) + 100000000; // 9-digit random number
+      const randomIdStr = randomId.toString();
+      
+      this.peerIdToRandomId.set(peerId, randomIdStr);
+      this.randomIdToPeerId.set(randomIdStr, peerId);
+    }
+    return this.peerIdToRandomId.get(peerId)!;
+  }
+
+  private getPeerIdFromRandomId(randomId: string): PeerId | undefined {
+    return this.randomIdToPeerId.get(randomId);
+  }
+
   private async overrideHash(peerId?: PeerId) {
     let str: string;
     if(peerId) {
-      const username = await this.managers.appPeersManager.getPeerUsername(peerId);
-      str = username ? '@' + username : '' + peerId;
+      // HIDDEN: Use random ID instead of real peer ID or username to hide both from URL
+      str = this.getRandomIdForPeer(peerId);
+      // Original code: const username = await this.managers.appPeersManager.getPeerUsername(peerId);
+      // Original code: str = username ? '@' + username : '' + peerId;
     }
 
     appNavigationController.overrideHash(str);
