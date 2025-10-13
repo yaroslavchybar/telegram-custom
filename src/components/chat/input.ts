@@ -1022,7 +1022,7 @@ export default class ChatInput {
       // verify: () => this.chat.canSend('send_docs')
     }, {
       icon: 'microphone',
-      regularText: 'Voice Note',
+      regularText: 'Голосовое',
       onClick: () => this.onAttachVoiceNoteClick()
       // verify: () => this.chat.canSend('send_audios')
     }, {
@@ -1549,6 +1549,18 @@ export default class ChatInput {
         // Get audio duration if possible
         const duration = await this.getAudioDuration(file);
         
+        // Simulate recording status for the duration of the voice note
+        const simulateRecordingDuration = Math.max(1000, Math.min(duration * 1000, 10000)); // Min 1s, Max 10s
+        
+        // Set recording action status
+        this.managers.appMessagesManager.setTyping(this.chat.peerId, {_: 'sendMessageRecordAudioAction'}, undefined, this.chat.threadId);
+        
+        // Wait for the simulated recording duration
+        await new Promise(resolve => setTimeout(resolve, simulateRecordingDuration));
+        
+        // Cancel typing status
+        this.managers.appMessagesManager.setTyping(this.chat.peerId, {_: 'sendMessageCancelAction'}, undefined, this.chat.threadId);
+        
         const sendingParams = this.chat.getMessageSendingParams();
         
         // Check for paid message requirements
@@ -1574,6 +1586,8 @@ export default class ChatInput {
       } catch(error) {
         console.error('Error sending voice note:', error);
         toast('Error sending voice note');
+        // Cancel typing status in case of error
+        this.managers.appMessagesManager.setTyping(this.chat.peerId, {_: 'sendMessageCancelAction'}, undefined, this.chat.threadId);
       }
     }
     
