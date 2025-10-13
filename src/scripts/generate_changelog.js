@@ -11,7 +11,7 @@ const fileNames = fs.readdirSync('./');
 
 const logsPath = './public/changelogs/';
 fs.rmSync(logsPath, {force: true, recursive: true});
-fs.mkdirSync(logsPath);
+fs.mkdirSync(logsPath, {recursive: true});
 
 const processChangelog = (fileName) => {
   const text = fs.readFileSync('./' + fileName).toString('utf-8');
@@ -25,7 +25,7 @@ const processChangelog = (fileName) => {
     if(!text.trim()) return;
     text = separator + text;
     text = text.replace(/^\*(\s)/gm, '•$1');
-    const splitted = text.split('\n');
+    const splitted = text.split(/\r?\n/);
 
     for(let i = splitted.length - 1; i >= 0; --i) {
       const line = splitted[i];
@@ -37,7 +37,7 @@ const processChangelog = (fileName) => {
     }
 
     const firstLine = splitted.shift();
-    const version = firstLine.split(' ')[1];
+    const version = String(firstLine.split(' ')[1]).trim();
     fs.writeFileSync(writeTo.replace('{VERSION}', version), splitted.join('\n') + '\n');
   });
 };

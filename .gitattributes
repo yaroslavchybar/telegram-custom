@@ -1,0 +1,7 @@
+# Normalize all text files to LF in working tree and repo
+* text=auto eol=lf
+
+# Keep Windows EOL only for Windows-specific scripts
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
