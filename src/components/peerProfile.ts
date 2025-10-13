@@ -62,6 +62,7 @@ import {rgbIntToHex} from '../helpers/color';
 import {wrapAdaptiveCustomEmoji} from './wrappers/customEmojiSimple';
 import usePeerTranslation from '../hooks/usePeerTranslation';
 import {MyStarGift} from '../lib/appManagers/appGiftsManager';
+import {supabase, ProfileNoteInsert, ProfileNoteUpdate} from '../lib/supabase';
 
 const setText = (text: Parameters<typeof setInnerHTML>[1], row: Row) => {
   setInnerHTML(row.title, text || undefined);
@@ -78,6 +79,8 @@ export default class PeerProfile {
   private bio: Row;
   private username: Row;
   private phone: Row;
+  private notes: Row;          // CUSTOM: Notes section added
+  private originalNotesValue: string; // CUSTOM: Store original value for cancel
   private notifications: Row;
   private location: Row;
   private link: Row;
@@ -382,6 +385,73 @@ export default class PeerProfile {
       this.businessLocation.container
     );
 
+    // CUSTOM: Create editable notes section
+    this.notes = new Row({
+      title: ' ',
+      subtitle: true,
+      icon: 'document',
+      listenerSetter: this.listenerSetter,
+      clickable: (e) => {
+        // Prevent default row click behavior and focus on title for editing
+        e.preventDefault();
+        e.stopPropagation();
+        this.notes.title.focus();
+      }
+    });
+    
+    this.notes.subtitle.textContent = 'Notes';
+    
+    // Make the title editable
+    this.notes.title.contentEditable = 'true';
+    this.notes.title.style.cursor = 'text';
+    this.notes.title.style.minHeight = '1.2em';
+    this.notes.title.style.maxHeight = '150px'; // Limit maximum height
+    this.notes.title.style.overflowY = 'auto'; // Add scrolling if content exceeds max height
+    this.notes.title.style.outline = 'none';
+    this.notes.title.style.padding = '4px 6px';
+    this.notes.title.style.borderRadius = '6px';
+    this.notes.title.style.transition = 'background-color 0.2s';
+    this.notes.title.style.whiteSpace = 'pre-wrap'; // Preserve line breaks and wrap text
+    this.notes.title.style.wordWrap = 'break-word'; // Break long words if needed
+    
+    // Prevent clicks on the title element from bubbling to the row
+    this.listenerSetter.add(this.notes.title)('click', (e) => {
+      e.stopPropagation();
+    });
+    
+    // Add event listeners for inline editing
+    this.listenerSetter.add(this.notes.title)('input', (e) => {
+      this.onNotesInput();
+    });
+    
+    this.listenerSetter.add(this.notes.title)('blur', (e) => {
+      this.onNotesBlur();
+    });
+    
+    this.listenerSetter.add(this.notes.title)('keydown', (e) => {
+      if (e.key === 'Enter') {
+        if (e.shiftKey) {
+          // Shift+Enter: Allow new line (default behavior)
+          // Don't prevent default, let the browser insert a line break
+          return;
+        } else {
+          // Enter without Shift: Save and exit
+          e.preventDefault();
+          this.notes.title.blur(); // This will trigger save via blur event
+        }
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        this.cancelNotesEdit();
+      }
+    });
+    
+    this.listenerSetter.add(this.notes.title)('focus', (e) => {
+      this.onNotesFocus();
+    });
+    
+    this.section.content.append(this.notes.container);
+
     const {listenerSetter} = this;
     if(this.isDialog) {
       this.notifications = new Row({
@@ -614,6 +684,11 @@ export default class PeerProfile {
     });
 
     this.botVerification.style.display = 'none';
+    
+    // CUSTOM: Reset notes display
+    if(this.notes) {
+      this.notes.container.style.display = 'none';
+    }
 
     if(this.notifications) {
       this.notifications.container.style.display = '';
@@ -778,6 +853,20 @@ export default class PeerProfile {
     }
   }
 
+  // CUSTOM: Fill notes section
+  private async fillNotes() {
+    if(!this.notes || !this.peerId) {
+      return;
+    }
+
+    return () => {
+      // Use async function but don't wait for it in the callback
+      this.updateNotesDisplay().catch(error => {
+        console.error('Error in fillNotes callback:', error);
+      });
+    };
+  }
+
   private async fillName(middleware: Middleware, white?: boolean) {
     const {peerId} = this.getDetailsForUse();
     const [element/* , icons */] = await Promise.all([
@@ -806,6 +895,7 @@ export default class PeerProfile {
     return Promise.all([
       // this.fillUsername(),     // HIDDEN: Username fill removed
       // this.fillUserPhone(),    // HIDDEN: Phone fill removed
+      this.fillNotes(),            // CUSTOM: Load notes
       this.fillNotifications(),
       this.setMoreDetails(undefined, manual),
       this.setPeerStatus(true, true)
@@ -1164,6 +1254,11 @@ export default class PeerProfile {
 
     this.middlewareHelper.clean();
     this.cleaned = true;
+    
+    // CUSTOM: Load notes when peer changes
+    this.updateNotesDisplay().catch(error => {
+      console.error('Error loading notes for new peer:', error);
+    });
   }
 
   public clearSetMoreDetailsTimeout() {
@@ -1171,6 +1266,167 @@ export default class PeerProfile {
       clearTimeout(this.setMoreDetailsTimeout);
       this.setMoreDetailsTimeout = undefined;
     }
+  }
+
+  // CUSTOM: Notes functionality implementation using Supabase
+  private async loadNotes(peerId: PeerId): Promise<string> {
+    try {
+      const currentUserId = rootScope.myId.isUser() ? rootScope.myId.toUserId() : 0;
+      const targetPeerIdStr = peerId.toString();
+
+      const { data, error } = await supabase
+        .from('profile_notes')
+        .select('notes')
+        .eq('user_id', currentUserId)
+        .eq('peer_id', targetPeerIdStr)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') { // No rows found
+          return '';
+        }
+        console.error('Error loading notes:', error);
+        return '';
+      }
+
+      return data?.notes || '';
+    } catch (error) {
+      console.error('Error loading notes:', error);
+      return '';
+    }
+  }
+
+  private async saveNotes(peerId: PeerId, notes: string): Promise<void> {
+    try {
+      const currentUserId = rootScope.myId.isUser() ? rootScope.myId.toUserId() : 0;
+      const targetPeerIdStr = peerId.toString();
+
+      if (notes.trim()) {
+        // Insert or update notes
+        const { error } = await supabase
+          .from('profile_notes')
+          .upsert({
+            user_id: currentUserId,
+            peer_id: targetPeerIdStr,
+            notes: notes.trim()
+          } as ProfileNoteInsert, {
+            onConflict: 'user_id,peer_id'
+          });
+
+        if (error) {
+          console.error('Error saving notes:', error);
+          throw error;
+        }
+      } else {
+        // Delete the record if notes are empty
+        const { error } = await supabase
+          .from('profile_notes')
+          .delete()
+          .eq('user_id', currentUserId)
+          .eq('peer_id', targetPeerIdStr);
+
+        if (error) {
+          console.error('Error deleting notes:', error);
+          throw error;
+        }
+      }
+    } catch (error) {
+      console.error('Error saving notes:', error);
+      throw error;
+    }
+  }
+
+  private async updateNotesDisplay(): Promise<void> {
+    if (!this.notes || !this.peerId) return;
+    
+    try {
+      const notes = await this.loadNotes(this.peerId);
+      if (notes.trim()) {
+        this.notes.title.textContent = notes;
+        this.notes.title.style.color = ''; // Reset to default color
+        this.notes.container.style.display = '';
+      } else {
+        this.notes.title.textContent = 'Добавить заметки...';
+        this.notes.title.style.color = '#7a7a7a';
+        this.notes.container.style.display = '';
+      }
+    } catch (error) {
+      console.error('Error updating notes display:', error);
+      // Fallback to showing empty state
+      this.notes.title.textContent = 'Click to add notes...';
+      this.notes.title.style.color = '#7a7a7a';
+      this.notes.container.style.display = '';
+    }
+  }
+
+  // CUSTOM: Inline editing event handlers
+  private onNotesFocus(): void {
+    if (!this.peerId) return;
+    
+    // Store original value for potential cancel
+    this.originalNotesValue = this.notes.title.textContent || '';
+    
+    // Clear placeholder text if present
+    if (this.notes.title.textContent === 'Добавить заметки...') {
+      this.notes.title.textContent = '';
+    }
+    
+    // Visual feedback for editing state
+    this.notes.title.style.backgroundColor = 'var(--surface-color)';
+    this.notes.title.style.color = 'var(--primary-text-color)';
+  }
+
+  private onNotesInput(): void {
+    // Optional: Add any real-time validation or formatting here
+  }
+
+  private async onNotesBlur(): Promise<void> {
+    if (!this.peerId) return;
+
+    try {
+      // Get text content and normalize line endings
+      const newNotes = (this.notes.title.textContent || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const originalNotes = (this.originalNotesValue || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      
+      // Only save if the content actually changed
+      if (newNotes !== originalNotes) {
+        await this.saveNotes(this.peerId, newNotes);
+        
+        if (newNotes.trim()) {
+          toast('Notes saved');
+        } else {
+          toast('Notes cleared');
+        }
+      }
+      
+      // Remove editing visual feedback
+      this.notes.title.style.backgroundColor = '';
+      
+      // Update display to handle empty state
+      await this.updateNotesDisplay();
+      
+    } catch (error) {
+      console.error('Error saving notes:', error);
+      toast('Error saving notes. Please try again.');
+      
+      // Restore original value on error
+      this.notes.title.textContent = this.originalNotesValue;
+    }
+  }
+
+  private cancelNotesEdit(): void {
+    if (!this.peerId) return;
+    
+    // Restore original value
+    this.notes.title.textContent = this.originalNotesValue;
+    
+    // Remove focus
+    this.notes.title.blur();
+    
+    // Update display
+    this.updateNotesDisplay().catch(error => {
+      console.error('Error updating notes display after cancel:', error);
+    });
   }
 
   public destroy() {
