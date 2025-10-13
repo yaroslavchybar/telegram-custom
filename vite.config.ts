@@ -7,7 +7,7 @@ import checker from 'vite-plugin-checker';
 // import devtools from 'solid-devtools/vite'
 import autoprefixer from 'autoprefixer';
 import {resolve} from 'path';
-import {existsSync, copyFileSync} from 'fs';
+import {existsSync, copyFileSync, mkdirSync, readdirSync, statSync} from 'fs';
 import {ServerOptions} from 'vite';
 import {watchLangFile} from './watch-lang.js';
 import path from 'path';
@@ -47,6 +47,52 @@ const USE_SOLID_SRC = false;
 const SOLID_PATH = USE_SOLID_SRC ? SOLID_SRC_PATH : SOLID_BUILT_PATH;
 const USE_OWN_SOLID = existsSync(resolve(rootDir, SOLID_PATH));
 
+function copyPublicSubsetPlugin() {
+  let resolvedOutDir = 'dist';
+  return {
+    name: 'copy-public-subset',
+    apply: 'build',
+    configResolved(config: any) {
+      // Resolve absolute outDir
+      resolvedOutDir = resolve(rootDir, config.build.outDir || 'dist');
+    },
+    writeBundle() {
+      const publicDir = resolve(rootDir, 'public');
+      const outDir = resolvedOutDir;
+
+      const copyRecursiveSync = (src: string, dest: string) => {
+        if (!existsSync(src)) return;
+        const st = statSync(src);
+        if (st.isDirectory()) {
+          if (!existsSync(dest)) mkdirSync(dest, { recursive: true });
+          for (const name of readdirSync(src)) {
+            copyRecursiveSync(resolve(src, name), resolve(dest, name));
+          }
+        } else {
+          const dirname = path.dirname(dest);
+          if (!existsSync(dirname)) mkdirSync(dirname, { recursive: true });
+          copyFileSync(src, dest);
+        }
+      };
+
+      // Copy /public/assets -> /dist/assets (icons, fonts, images)
+      copyRecursiveSync(resolve(publicDir, 'assets'), resolve(outDir, 'assets'));
+
+      // Copy root-level manifest/config files
+      for (const file of ['site.webmanifest', 'site_apple.webmanifest', 'browserconfig.xml']) {
+        const src = resolve(publicDir, file);
+        const dst = resolve(outDir, file);
+        if (existsSync(src)) copyFileSync(src, dst);
+      }
+
+      // Also copy favicon to root so /favicon.ico works
+      const favSrc = resolve(publicDir, 'assets', 'img', 'favicon.ico');
+      const favDst = resolve(outDir, 'favicon.ico');
+      if (existsSync(favSrc)) copyFileSync(favSrc, favDst);
+    }
+  } as any;
+}
+
 const USE_SSL = false;
 const USE_SSL_CERTS = false;
 const NO_MINIFY = false;
@@ -85,7 +131,8 @@ export default defineConfig({
     visualizer({
       gzipSize: true,
       template: 'treemap'
-    })
+    }),
+    copyPublicSubsetPlugin()
   ].filter(Boolean),
   test: {
     // include: ['**/*.{test,spec}.?(c|m)[jt]s?(x)'],
