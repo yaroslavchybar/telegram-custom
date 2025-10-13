@@ -268,7 +268,7 @@ export default class ChatInput {
   private helperWaitingForward: boolean;
   private helperWaitingReply: boolean;
 
-  public willAttachType: 'document' | 'media';
+  public willAttachType: 'document' | 'media' | 'voice-note';
 
   private autocompleteHelperController: AutocompleteHelperController;
   private stickersHelper: StickersHelper;
@@ -1021,6 +1021,11 @@ export default class ChatInput {
       onClick: () => this.onAttachClick(true)
       // verify: () => this.chat.canSend('send_docs')
     }, {
+      icon: 'microphone',
+      regularText: 'Voice Note',
+      onClick: () => this.onAttachVoiceNoteClick()
+      // verify: () => this.chat.canSend('send_audios')
+    }, {
       icon: 'gift',
       text: 'GiftPremium',
       onClick: () => this.chat.appImManager.giftPremium(this.chat.peerId),
@@ -1282,6 +1287,13 @@ export default class ChatInput {
         return;
       }
 
+      // Handle voice notes specially - send directly as voice messages
+      if(this.willAttachType === 'voice-note') {
+        this.sendFilesAsVoiceNotes(files);
+        this.fileInput.value = '';
+        return;
+      }
+
       const newMediaPopup = getCurrentNewMediaPopup();
       if(newMediaPopup) {
         newMediaPopup.addFiles(files);
@@ -1469,6 +1481,138 @@ export default class ChatInput {
     this.fileInput.click();
     this.onFileSelection?.(this.fileSelectionPromise);
   };
+
+  public onAttachVoiceNoteClick = async() => {
+    if(await this.showSlowModeTooltipIfNeeded({
+      element: this.attachMenu
+    })) {
+      return;
+    }
+
+    const promise = this.fileSelectionPromise = deferredPromise();
+    this.fileInput.value = '';
+
+    promise.finally(() => {
+      idleController.removeEventListener('change', onIdleChange);
+      if(promise !== this.fileSelectionPromise) {
+        return;
+      }
+    });
+
+    const onIdleChange = (idle: boolean) => {
+      if(promise !== this.fileSelectionPromise) {
+        promise.reject();
+        return;
+      }
+
+      if(!idle) {
+        setTimeout(() => {
+          promise.reject();
+        }, 1000);
+      }
+    };
+    idleController.addEventListener('change', onIdleChange);
+
+    // Set accept attribute for supported voice message formats
+    const audioAccept = [
+      'audio/ogg',
+      'audio/oga',
+      'audio/mp3',
+      'audio/mpeg',
+      'audio/m4a',
+      'audio/mp4',
+      'audio/aac'
+    ].join(', ');
+    
+    this.fileInput.setAttribute('accept', audioAccept);
+    this.willAttachType = 'voice-note';
+
+    this.fileInput.click();
+    this.onFileSelection?.(this.fileSelectionPromise);
+  };
+
+  private async sendFilesAsVoiceNotes(files: File[]) {
+    for(const file of files) {
+      try {
+        // Check if file format is supported for voice messages
+        if (!this.isVoiceMessageSupported(file)) {
+          toast(`Unsupported format: ${file.name}. Please use OGG, MP3, or M4A format.`);
+          continue;
+        }
+        
+        // Check file size (50MB limit)
+        if (file.size > 50 * 1024 * 1024) {
+          toast(`File too large: ${file.name}. Maximum size is 50MB.`);
+          continue;
+        }
+        
+        // Get audio duration if possible
+        const duration = await this.getAudioDuration(file);
+        
+        const sendingParams = this.chat.getMessageSendingParams();
+        
+        // Check for paid message requirements
+        const preparedPaymentResult = await this.paidMessageInterceptor.prepareStarsForPayment(1);
+        if(preparedPaymentResult === PAYMENT_REJECTED) continue;
+        
+        sendingParams.confirmedPaymentResult = preparedPaymentResult;
+        
+        // Create object URL for the file
+        const objectURL = URL.createObjectURL(file);
+        
+        // Send as voice message
+        this.managers.appMessagesManager.sendFile({
+          ...sendingParams,
+          file: file,
+          isVoiceMessage: true,
+          isMedia: true,
+          duration: duration,
+          objectURL: objectURL,
+          clearDraft: true
+        });
+        
+      } catch(error) {
+        console.error('Error sending voice note:', error);
+        toast('Error sending voice note');
+      }
+    }
+    
+    this.onMessageSent(false, true);
+  }
+  
+  private isVoiceMessageSupported(file: File): boolean {
+    const supportedTypes = [
+      'audio/ogg',
+      'audio/oga', 
+      'audio/mp3',
+      'audio/mpeg',
+      'audio/m4a',
+      'audio/mp4', // M4A files sometimes have this MIME type
+      'audio/aac'
+    ];
+    
+    return supportedTypes.includes(file.type.toLowerCase()) || 
+           !!file.name.toLowerCase().match(/\.(ogg|oga|mp3|m4a|aac)$/);
+  }
+  
+  private getAudioDuration(file: File): Promise<number> {
+    return new Promise((resolve) => {
+      const audio = document.createElement('audio');
+      const objectUrl = URL.createObjectURL(file);
+      
+      audio.addEventListener('loadedmetadata', () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(audio.duration || 0);
+      });
+      
+      audio.addEventListener('error', () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(0); // Default to 0 if we can't get duration
+      });
+      
+      audio.src = objectUrl;
+    });
+  }
 
   public _center(neededFakeContainer: HTMLElement, animate?: boolean) {
     if(!neededFakeContainer && !this.inputContainer.classList.contains('is-centering')) {
