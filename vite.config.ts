@@ -85,6 +85,13 @@ function copyPublicSubsetPlugin() {
         if (existsSync(src)) copyFileSync(src, dst);
       }
 
+      // Copy known WASM binaries required by workers (rlottie/opus)
+      for (const wasm of ['rlottie-wasm.wasm', 'encoderWorker.min.wasm', 'decoderWorker.min.wasm']) {
+        const src = resolve(publicDir, wasm);
+        const dst = resolve(outDir, wasm);
+        if (existsSync(src)) copyFileSync(src, dst);
+      }
+
       // Also copy favicon to root so /favicon.ico works
       const favSrc = resolve(publicDir, 'assets', 'img', 'favicon.ico');
       const favDst = resolve(outDir, 'favicon.ico');
