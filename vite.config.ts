@@ -71,14 +71,14 @@ export default defineConfig({
     //   /* features options - all disabled by default */
     //   autoname: true // e.g. enable autoname
     // }),
-    process.env.VITEST ? undefined : checker({
+    (isDEV && !process.env.VITEST) ? checker({
       typescript: true,
       eslint: {
         // for example, lint .ts and .tsx
         lintCommand: 'eslint "./src/**/*.{ts,tsx}" --ignore-pattern "/src/solid/*"',
         useFlatConfig: true
       }
-    }),
+    }) : undefined,
     solidPlugin(),
     handlebarsPlugin as any,
     USE_SSL ? (basicSsl as any)(SSL_CONFIG) : undefined,
