@@ -1374,8 +1374,8 @@ export default class PeerProfile {
   private onNotesFocus(): void {
     if (!this.peerId) return;
     
-    // Store original value for potential cancel
-    this.originalNotesValue = this.notes.title.textContent || '';
+    // Store original value for potential cancel (preserve newlines)
+    this.originalNotesValue = this.notes.title.innerText || '';
     
     // Clear placeholder text if present
     if (this.notes.title.textContent === 'Добавить заметки...') {
@@ -1395,8 +1395,8 @@ export default class PeerProfile {
     if (!this.peerId) return;
 
     try {
-      // Get text content and normalize line endings
-      const newNotes = (this.notes.title.textContent || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      // Get text with preserved newlines and normalize line endings
+      const newNotes = (this.notes.title.innerText || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       const originalNotes = (this.originalNotesValue || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       
       // Only save if the content actually changed
