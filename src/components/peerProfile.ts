@@ -441,14 +441,14 @@ export default class PeerProfile {
     
     this.listenerSetter.add(this.notes.title)('keydown', (e) => {
       if (e.key === 'Enter') {
-        if (e.shiftKey) {
-          // Shift+Enter: Allow new line (default behavior)
-          // Don't prevent default, let the browser insert a line break
-          return;
-        } else {
-          // Enter without Shift: Save and exit
+        // Mobile keyboards often lack Shift. Let plain Enter insert a newline.
+        // Use Ctrl/Cmd + Enter to save and close.
+        const ke = e as KeyboardEvent;
+        if (ke.ctrlKey || ke.metaKey) {
           e.preventDefault();
-          this.notes.title.blur(); // This will trigger save via blur event
+          this.notes.title.blur(); // triggers save via blur event
+        } else {
+          return; // allow newline
         }
       }
       if (e.key === 'Escape') {
