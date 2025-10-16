@@ -45,7 +45,9 @@ const SOLID_SRC_PATH = 'src/solid/packages/solid';
 const SOLID_BUILT_PATH = 'src/vendor/solid';
 const USE_SOLID_SRC = false;
 const SOLID_PATH = USE_SOLID_SRC ? SOLID_SRC_PATH : SOLID_BUILT_PATH;
-const USE_OWN_SOLID = existsSync(resolve(rootDir, SOLID_PATH));
+// Allow overriding via env: set USE_OWN_SOLID=false to force using node_modules solid-js
+const ENV_USE_OWN_SOLID = process.env.USE_OWN_SOLID;
+const USE_OWN_SOLID = ENV_USE_OWN_SOLID ? ENV_USE_OWN_SOLID === 'true' : existsSync(resolve(rootDir, SOLID_PATH));
 
 function copyPublicSubsetPlugin() {
   let resolvedOutDir = 'dist';

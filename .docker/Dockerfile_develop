@@ -1,7 +1,8 @@
 # Base image
 FROM node:18
 
-RUN npm install -g pnpm
+# Enable Corepack to use repo's pnpm version
+RUN corepack enable
 
 # Set the working directory in the container
 WORKDIR /app

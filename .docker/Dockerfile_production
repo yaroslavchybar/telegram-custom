@@ -1,29 +1,30 @@
-# Base image
-FROM node:18
+# syntax=docker/dockerfile:1
 
-# Set the working directory in the container
+# --- Builder ---
+FROM node:20-alpine AS builder
 WORKDIR /app
 
-# copy src
-COPY .. .
+# Use corepack so we use the repo's pnpm version
+RUN corepack enable
 
-# install pnpm
-RUN npm install -g pnpm
+# Install deps first for better layer caching
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
-# install initial depenancies
-RUN pnpm install
+# Copy the rest and build
+COPY . .
+ENV NODE_ENV=production
+RUN pnpm build
 
-# install production depencancies
-RUN pnpm install --production
-
-# build
-RUN node build
-
-
-#pull nginx as webser and load balancer
+# --- Runtime ---
 FROM nginx:stable-alpine3.20-slim
 
 RUN apk update && apk upgrade --no-cache
 
-# copy the build files to nginx entry point
-COPY ./public /usr/share/nginx/html
+# SPA fallback + caching rules
+COPY ./.docker/nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copy built assets to Nginx web root
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+EXPOSE 80

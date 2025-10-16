@@ -1,0 +1,14 @@
+# Exclude dependencies and build artifacts from Docker build context
+node_modules
+.pnpm-store
+.pnpm
+.git
+.gitignore
+.dist
+cache
+coverage
+dist
+npm-debug.log
+yarn.lock
+**/*.log
+**/*.cache
