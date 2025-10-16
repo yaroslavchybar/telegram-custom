@@ -391,8 +391,13 @@ export default class PeerProfile {
       subtitle: true,
       icon: 'document',
       listenerSetter: this.listenerSetter,
+      noRipple: true,
       clickable: (e) => {
-        // Prevent default row click behavior and focus on title for editing
+        // If tap/click is inside the editable title, allow default so caret/selection works
+        if (this.notes?.title && (e.target === this.notes.title || this.notes.title.contains(e.target as Node))) {
+          return;
+        }
+        // Otherwise focus the editable area without triggering navigation
         e.preventDefault();
         e.stopPropagation();
         this.notes.title.focus();
@@ -413,6 +418,12 @@ export default class PeerProfile {
     this.notes.title.style.transition = 'background-color 0.2s';
     this.notes.title.style.whiteSpace = 'pre-wrap'; // Preserve line breaks and wrap text
     this.notes.title.style.wordWrap = 'break-word'; // Break long words if needed
+    // Ensure interactions and selection work on mobile
+    this.notes.title.style.pointerEvents = 'auto';
+    this.notes.title.style.setProperty('user-select', 'text');
+    this.notes.title.style.setProperty('-webkit-user-select', 'text');
+    this.notes.title.style.setProperty('-webkit-overflow-scrolling', 'touch');
+    this.notes.title.style.setProperty('touch-action', 'auto');
     
     // Prevent clicks on the title element from bubbling to the row
     this.listenerSetter.add(this.notes.title)('click', (e) => {

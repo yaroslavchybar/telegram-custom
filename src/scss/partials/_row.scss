@@ -226,6 +226,14 @@ $row-border-radius: $border-radius-medium;
     pointer-events: none;
   }
 
+  // Allow interaction/selection when title is editable
+  &-title[contenteditable="true"] {
+    pointer-events: auto;
+    user-select: text;
+    -webkit-user-select: text;
+    cursor: text;
+  }
+
   &-midtitle {
     font-size: var(--font-size-14);
     line-height: 20px;
